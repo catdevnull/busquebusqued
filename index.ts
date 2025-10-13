@@ -73,7 +73,7 @@ type RawTweet = Record<string, unknown> & {
         console.error('Usage: bun run index.ts search "query text" [--k=10]');
         process.exit(1);
       }
-      const k = parsed.values.k ? parseInt(parsed.values.k, 10) : 10;
+      const k = parsed.values.k ? parseInt(parsed.values.k, 10) : 40;
 
       const candidates = await fetchHybridCandidates(sql, query, 150);
 
@@ -282,7 +282,7 @@ async function rerankCandidates(
   query: string,
   candidates: Candidate[]
 ): Promise<RerankResult> {
-  const model = Bun.env.RERANK_MODEL ?? "gpt-5-mini";
+  const model = Bun.env.RERANK_MODEL ?? "openai/gpt-5-mini";
 
   const compactCandidates = candidates.map((c) => ({
     i: c.i,
@@ -303,7 +303,7 @@ async function rerankCandidates(
         {
           role: "system",
           content:
-            "You rate tweets strictly 0..6 for how well they describe or entail the given headline. Return only compact JSON array of {i, score}. No commentary.",
+            "You rate tweets strictly 0..6 for how well they describe or entail the given headline. Return a JSON array of objects with {i, score}.",
         },
         {
           role: "user",
@@ -313,37 +313,61 @@ async function rerankCandidates(
         },
       ],
       temperature: 0,
-      max_tokens: 600,
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "rerank_response",
+          strict: true,
+          schema: {
+            type: "object",
+            properties: {
+              results: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    i: { type: "number" },
+                    score: { type: "number" },
+                  },
+                  required: ["i", "score"],
+                  additionalProperties: false,
+                },
+              },
+            },
+            required: ["results"],
+            additionalProperties: false,
+          },
+        },
+      },
     }),
   });
 
   if (!resp.ok) {
+    const errorText = await resp.text();
     throw new Error(
-      `OpenRouter request failed: ${resp.status} ${resp.statusText}`
+      `OpenRouter request failed: ${resp.status} ${resp.statusText}\n${errorText}`
     );
   }
 
   const data: any = await resp.json();
   const content: string = data.choices?.[0]?.message?.content ?? "";
-  return safeParseRerankJson(content);
-}
 
-function safeParseRerankJson(s: string): RerankResult {
-  const normalize = (a: any[]): RerankResult =>
-    a
-      .map((x) => ({ i: Number(x.i), score: clampInt(Number(x.score), 0, 6) }))
-      .filter((x) => Number.isFinite(x.i) && Number.isFinite(x.score));
-
-  try {
-    const j = JSON.parse(s);
-    if (Array.isArray(j)) return normalize(j);
-  } catch {}
-  const m = s.match(/\[([\s\S]*?)\]/);
-  if (m) {
-    const j = JSON.parse(m[0]!);
-    if (Array.isArray(j)) return normalize(j);
+  if (!content) {
+    console.error("Full API response:", JSON.stringify(data, null, 2));
+    throw new Error(
+      "Empty content from rerank API. Check if model supports structured output."
+    );
   }
-  throw new Error("Failed to parse rerank JSON");
+
+  const parsed = JSON.parse(content);
+  const results = parsed.results ?? [];
+
+  return results
+    .map((x: any) => ({
+      i: Number(x.i),
+      score: clampInt(Number(x.score), 0, 6),
+    }))
+    .filter((x: any) => Number.isFinite(x.i) && Number.isFinite(x.score));
 }
 
 // --- Final Ranking & Output ---
