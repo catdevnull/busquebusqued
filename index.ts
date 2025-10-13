@@ -3,7 +3,7 @@ import { sql, SQL } from "bun";
 import fs from "node:fs";
 import { createInterface } from "node:readline";
 import { parseArgs } from "node:util";
-
+import pMap from "p-map";
 type Db = SQL;
 
 type IngestRow = {
@@ -81,7 +81,12 @@ type RawTweet = Record<string, unknown> & {
         console.log("No results.");
         process.exit(0);
       }
-      const rerank = await rerankCandidates(query, candidates);
+      let rerank: RerankResult = [];
+      try {
+        rerank = await rerankCandidates(query, candidates);
+      } catch (err) {
+        console.error(err);
+      }
       const top = computeFinalRanking(candidates, rerank, k);
       for (const r of top) {
         console.log(
@@ -399,36 +404,43 @@ function computeFinalRanking(
 
 // --- Embeddings (OpenAI) ---
 async function computeEmbeddingsBatch(texts: string[]): Promise<number[][]> {
-  const batchSize = 3000;
-  const results: number[][] = [];
+  const batchSize = 100;
+  const batches: string[][] = [];
 
   for (let i = 0; i < texts.length; i += batchSize) {
-    const batch = texts.slice(i, i + batchSize);
-    const resp = await fetch("https://api.openai.com/v1/embeddings", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${Bun.env.OPENAI_API_KEY!}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "text-embedding-3-large",
-        input: batch,
-        encoding_format: "float",
-      }),
-    });
-
-    if (!resp.ok) {
-      throw new Error(
-        `OpenAI embeddings failed: ${resp.status} ${resp.statusText}`
-      );
-    }
-
-    const data: any = await resp.json();
-    const embeddings = data.data.map((d: any) => d.embedding as number[]);
-    results.push(...embeddings);
+    batches.push(texts.slice(i, i + batchSize));
   }
 
-  return results;
+  const results = await pMap(
+    batches,
+    async (batch) => {
+      const resp = await fetch("https://api.openai.com/v1/embeddings", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${Bun.env.OPENAI_API_KEY!}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "text-embedding-3-large",
+          input: batch,
+          encoding_format: "float",
+          dimensions: 1536,
+        }),
+      });
+
+      if (!resp.ok) {
+        throw new Error(
+          `OpenAI embeddings failed: ${resp.status} ${resp.statusText}`
+        );
+      }
+
+      const data: any = await resp.json();
+      return data.data.map((d: any) => d.embedding as number[]);
+    },
+    { concurrency: 30 }
+  );
+
+  return results.flat();
 }
 
 // --- Hybrid Search (FTS + ANN) ---
