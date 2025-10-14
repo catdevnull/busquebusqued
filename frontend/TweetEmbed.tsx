@@ -92,7 +92,7 @@ export default function TweetEmbed({
         className={`p-4 border border-red-200 dark:border-red-800 rounded-lg bg-red-50 dark:bg-red-900/20 ${className}`}
       >
         <p className="text-red-600 dark:text-red-400 text-sm">
-          Failed to load tweet: {error?.message || apiError}
+          Error al cargar el tweet: {error?.message || apiError}
         </p>
         <a
           href={`https://twitter.com/i/status/${tweetId}`}
@@ -100,7 +100,7 @@ export default function TweetEmbed({
           rel="noopener noreferrer"
           className="text-blue-600 dark:text-blue-400 hover:underline text-sm mt-2 inline-block"
         >
-          View on Twitter
+          Ver en Twitter
         </a>
       </div>
     );
@@ -172,7 +172,7 @@ export default function TweetEmbed({
                   <img
                     key={index}
                     src={photo.url}
-                    alt={`Tweet media ${index + 1}`}
+                    alt={`Medios del tweet ${index + 1}`}
                     className="rounded-lg max-w-full h-auto"
                   />
                 ))}

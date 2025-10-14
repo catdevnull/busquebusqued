@@ -37,7 +37,7 @@ export default function Results() {
             BusqueBusqued
           </h1>
           <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-            Resultados para: "{decodedQuery}"
+            Resultados sobre: "{decodedQuery}"
           </p>
         </div>
 
@@ -46,7 +46,7 @@ export default function Results() {
             <div className="flex items-start gap-3">
               <span className="mt-0.5 text-lg">⚠️</span>
               <div>
-                <p className="font-medium">Search error</p>
+                <p className="font-medium">Error de búsqueda</p>
                 <p className="text-sm opacity-90">
                   {error?.message || apiError}
                 </p>
