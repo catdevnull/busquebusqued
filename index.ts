@@ -56,8 +56,22 @@ type RawTweet = Record<string, unknown> & {
         console.error("Usage: bun run index.ts ingest <tweets.jsonl>");
         process.exit(1);
       }
+
+      const startTime = performance.now();
+      console.error(`📥 Starting ingest from: ${file}`);
+
+      const schemaStart = performance.now();
       await ensureSchema(sql);
+      const schemaTime = performance.now() - schemaStart;
+      console.error(`🗄️  Schema ensured in ${schemaTime.toFixed(2)}ms`);
+
+      const ingestStart = performance.now();
       await ingestJsonl(sql, file);
+      const ingestTime = performance.now() - ingestStart;
+      console.error(`📊 Ingest completed in ${ingestTime.toFixed(2)}ms`);
+
+      const totalTime = performance.now() - startTime;
+      console.error(`⏱️  Total ingest time: ${totalTime.toFixed(2)}ms`);
       break;
     }
     case "search": {
@@ -75,19 +89,51 @@ type RawTweet = Record<string, unknown> & {
       }
       const k = parsed.values.k ? parseInt(parsed.values.k, 10) : 40;
 
+      const startTime = performance.now();
+      console.error(`🔍 Starting search for: "${query}"`);
+
+      const candidatesStart = performance.now();
       const candidates = await fetchHybridCandidates(sql, query, 150);
+      const candidatesTime = performance.now() - candidatesStart;
+      console.error(
+        `📊 Found ${candidates.length} candidates in ${candidatesTime.toFixed(
+          2
+        )}ms`
+      );
 
       if (candidates.length === 0) {
         console.log("No results.");
         process.exit(0);
       }
+
       let rerank: RerankResult = [];
+      const rerankStart = performance.now();
       try {
-        rerank = await rerankCandidates(query, candidates);
+        rerank = await rerankCandidates(query, candidates.slice(0, 50));
+        const rerankTime = performance.now() - rerankStart;
+        console.error(
+          `🤖 Reranked ${rerank.length} candidates in ${rerankTime.toFixed(
+            2
+          )}ms`
+        );
       } catch (err) {
-        console.error(err);
+        const rerankTime = performance.now() - rerankStart;
+        console.error(
+          `❌ Reranking failed after ${rerankTime.toFixed(2)}ms:`,
+          err
+        );
       }
+
+      const rankingStart = performance.now();
       const top = computeFinalRanking(candidates, rerank, k);
+      const rankingTime = performance.now() - rankingStart;
+      console.error(
+        `⚖️  Final ranking computed in ${rankingTime.toFixed(2)}ms`
+      );
+
+      const totalTime = performance.now() - startTime;
+      console.error(`⏱️  Total search time: ${totalTime.toFixed(2)}ms`);
+
       for (const r of top) {
         console.log(
           `${r.created_at.slice(0, 10)} | ${r.final_score.toFixed(3)} | ${
@@ -201,8 +247,16 @@ async function upsertTweets(db: Db, rows: IngestRow[]): Promise<number> {
 
   const texts = rows.map((r) => r.text);
 
+  const embeddingsStart = performance.now();
   const embeddings = await computeEmbeddingsBatch(texts);
+  const embeddingsTime = performance.now() - embeddingsStart;
+  console.error(
+    `🧠 Computed ${embeddings.length} embeddings in ${embeddingsTime.toFixed(
+      2
+    )}ms`
+  );
 
+  const dbStart = performance.now();
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i]!;
     const emb = embeddings[i]!;
@@ -227,6 +281,8 @@ async function upsertTweets(db: Db, rows: IngestRow[]): Promise<number> {
         emb = EXCLUDED.emb
     `;
   }
+  const dbTime = performance.now() - dbStart;
+  console.error(`💾 Database upsert completed in ${dbTime.toFixed(2)}ms`);
 
   return rows.length;
 }
@@ -282,7 +338,8 @@ async function rerankCandidates(
   query: string,
   candidates: Candidate[]
 ): Promise<RerankResult> {
-  const model = Bun.env.RERANK_MODEL ?? "openai/gpt-5-mini";
+  // const model = "google/gemini-2.5-flash";
+  const model = "meta-llama/llama-4-maverick";
 
   const compactCandidates = candidates.map((c) => ({
     i: c.i,
@@ -299,6 +356,8 @@ async function rerankCandidates(
     },
     body: JSON.stringify({
       model,
+      // reasoning: { effort: "low" },
+      provider: { sort: "throughput" },
       messages: [
         {
           role: "system",
@@ -482,9 +541,21 @@ async function fetchHybridCandidates(
   userQuery: string,
   limit: number
 ): Promise<Candidate[]> {
+  const ftsStart = performance.now();
   const ftsCandidates = await fetchFtsCandidates(db, userQuery, limit);
-  const [queryEmb] = await computeEmbeddingsBatch([userQuery]);
+  const ftsTime = performance.now() - ftsStart;
+  console.error(
+    `🔍 FTS search found ${
+      ftsCandidates.length
+    } candidates in ${ftsTime.toFixed(2)}ms`
+  );
 
+  const embStart = performance.now();
+  const [queryEmb] = await computeEmbeddingsBatch([userQuery]);
+  const embTime = performance.now() - embStart;
+  console.error(`🧠 Query embedding computed in ${embTime.toFixed(2)}ms`);
+
+  const annStart = performance.now();
   const annResult = await db`
     SELECT 
       tweet_id::text AS tweet_id,
@@ -498,6 +569,8 @@ async function fetchHybridCandidates(
     ORDER BY emb <=> ${JSON.stringify(queryEmb)}::vector
     LIMIT ${limit}
   `;
+  const annTime = performance.now() - annStart;
+  console.error(`🔍 ANN search completed in ${annTime.toFixed(2)}ms`);
 
   const annRows = annResult as AnnRow[];
   const annCandidates: Candidate[] = annRows.map((row, i) => ({
