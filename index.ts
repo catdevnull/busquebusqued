@@ -40,8 +40,54 @@ type RawTweet = Record<string, unknown> & {
   lang: string;
 };
 
+// --- Search Function ---
+export async function searchTweets(
+  db: Db,
+  query: string,
+  k: number = 40
+): Promise<RankedCandidate[]> {
+  const startTime = performance.now();
+  console.error(`🔍 Starting search for: "${query}"`);
+
+  const candidatesStart = performance.now();
+  const candidates = await fetchHybridCandidates(db, query, 150);
+  const candidatesTime = performance.now() - candidatesStart;
+  console.error(
+    `📊 Found ${candidates.length} candidates in ${candidatesTime.toFixed(2)}ms`
+  );
+
+  if (candidates.length === 0) {
+    console.log("No results.");
+    return [];
+  }
+
+  let rerank: RerankResult = [];
+  const rerankStart = performance.now();
+  try {
+    rerank = await rerankCandidates(query, candidates.slice(0, 50));
+    const rerankTime = performance.now() - rerankStart;
+    console.error(
+      `🤖 Reranked ${rerank.length} candidates in ${rerankTime.toFixed(2)}ms`
+    );
+  } catch (err) {
+    const rerankTime = performance.now() - rerankStart;
+    console.error(`❌ Reranking failed after ${rerankTime.toFixed(2)}ms:`, err);
+  }
+
+  const rankingStart = performance.now();
+  const top = computeFinalRanking(candidates, rerank, k);
+  const rankingTime = performance.now() - rankingStart;
+  console.error(`⚖️  Final ranking computed in ${rankingTime.toFixed(2)}ms`);
+
+  const totalTime = performance.now() - startTime;
+  console.error(`⏱️  Total search time: ${totalTime.toFixed(2)}ms`);
+
+  return top;
+}
+
 // --- CLI entrypoint ---
 (async () => {
+  if (!import.meta.main) return;
   const [, , cmd, ...rest] = Bun.argv;
 
   switch (cmd) {
@@ -89,52 +135,9 @@ type RawTweet = Record<string, unknown> & {
       }
       const k = parsed.values.k ? parseInt(parsed.values.k, 10) : 40;
 
-      const startTime = performance.now();
-      console.error(`🔍 Starting search for: "${query}"`);
+      const results = await searchTweets(sql, query, k);
 
-      const candidatesStart = performance.now();
-      const candidates = await fetchHybridCandidates(sql, query, 150);
-      const candidatesTime = performance.now() - candidatesStart;
-      console.error(
-        `📊 Found ${candidates.length} candidates in ${candidatesTime.toFixed(
-          2
-        )}ms`
-      );
-
-      if (candidates.length === 0) {
-        console.log("No results.");
-        process.exit(0);
-      }
-
-      let rerank: RerankResult = [];
-      const rerankStart = performance.now();
-      try {
-        rerank = await rerankCandidates(query, candidates.slice(0, 50));
-        const rerankTime = performance.now() - rerankStart;
-        console.error(
-          `🤖 Reranked ${rerank.length} candidates in ${rerankTime.toFixed(
-            2
-          )}ms`
-        );
-      } catch (err) {
-        const rerankTime = performance.now() - rerankStart;
-        console.error(
-          `❌ Reranking failed after ${rerankTime.toFixed(2)}ms:`,
-          err
-        );
-      }
-
-      const rankingStart = performance.now();
-      const top = computeFinalRanking(candidates, rerank, k);
-      const rankingTime = performance.now() - rankingStart;
-      console.error(
-        `⚖️  Final ranking computed in ${rankingTime.toFixed(2)}ms`
-      );
-
-      const totalTime = performance.now() - startTime;
-      console.error(`⏱️  Total search time: ${totalTime.toFixed(2)}ms`);
-
-      for (const r of top) {
+      for (const r of results) {
         console.log(
           `${r.created_at.slice(0, 10)} | ${r.final_score.toFixed(3)} | ${
             r.tweet_id
