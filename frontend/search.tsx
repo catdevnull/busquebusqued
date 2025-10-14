@@ -138,17 +138,9 @@ export default function SearchPage() {
 
         {!isLoading && results.length === 0 && !searchQuery && (
           <div className="text-center py-16">
-            <div className="inline-flex items-center justify-center h-12 w-12 rounded-2xl bg-gray-100 dark:bg-gray-800 text-gray-500 mb-4">
-              🐦
-            </div>
-            <p className="text-lg font-medium">Welcome to Tweet Search</p>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 mb-6">
-              Search through indexed tweets to find what you're looking for
-            </p>
-
             <div className="max-w-4xl mx-auto">
               <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                Try searching for:
+                Probá buscando alguno de estos titulares de La Politica Online:
               </p>
               <div className="flex flex-wrap gap-2 justify-center">
                 {headingsLoading ? (
