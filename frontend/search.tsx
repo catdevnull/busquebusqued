@@ -1,49 +1,49 @@
 import { useState } from "react";
+import useSWR from "swr";
 import TweetEmbed from "./TweetEmbed";
 
 export default function SearchPage() {
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
-  const handleSearch = async (e: React.FormEvent) => {
+  // Use SWR for data fetching
+  const {
+    data: apiResponse,
+    error,
+    isLoading,
+  } = useSWR(
+    searchQuery ? `/api/search?q=${encodeURIComponent(searchQuery)}` : null,
+    (url: string) => fetch(url).then((res) => res.json())
+  );
+
+  // Fetch headings for example search terms
+  const {
+    data: headings,
+    error: headingsError,
+    isLoading: headingsLoading,
+  } = useSWR("/api/headings", (url: string) =>
+    fetch(url).then((res) => res.json())
+  );
+
+  // Extract results and handle API errors
+  const results = apiResponse?.error ? [] : apiResponse?.results || [];
+  const apiError = apiResponse?.error;
+
+  const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (!query.trim()) return;
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const response = await fetch(
-        `/api/search?q=${encodeURIComponent(query)}`
-      );
-      if (!response.ok) {
-        throw new Error(`Search failed: ${response.status}`);
-      }
-
-      const data = await response.json();
-      if (data.error) {
-        throw new Error(data.error);
-      }
-      setResults(data.results || []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Search failed");
-      setResults([]);
-    } finally {
-      setLoading(false);
-    }
+    setSearchQuery(query);
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white dark:from-gray-900 dark:to-gray-950 text-gray-900 dark:text-gray-100">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10">
         <div className="text-center mb-8">
           <h1 className="text-4xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600">
-            Tweet Search
+            BusqueBusqued
           </h1>
           <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-            Search indexed tweets and see scored results.
+            Busca entre todos los tweets de Carlos Busqued.
           </p>
         </div>
 
@@ -55,15 +55,15 @@ export default function SearchPage() {
               onChange={(e) => setQuery((e.target as HTMLInputElement).value)}
               placeholder="Enter your search query..."
               className="flex-1 px-4 py-2 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 placeholder:text-gray-400"
-              disabled={loading}
+              disabled={isLoading}
               aria-label="Search query"
             />
             <button
               type="submit"
-              disabled={loading || !query.trim()}
+              disabled={isLoading || !query.trim()}
               className="inline-flex items-center justify-center px-5 py-2 rounded-xl font-medium text-white bg-gradient-to-r from-blue-600 to-indigo-600 shadow-sm hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? (
+              {isLoading ? (
                 <span className="inline-flex items-center gap-2">
                   <span className="h-4 w-4 border-2 border-white/60 border-t-transparent rounded-full animate-spin" />
                   Searching...
@@ -75,13 +75,15 @@ export default function SearchPage() {
           </div>
         </form>
 
-        {error && (
+        {(error || apiError) && (
           <div className="mb-6 rounded-xl border border-red-300/60 bg-red-50 text-red-800 dark:bg-red-950/40 dark:text-red-200 dark:border-red-900 px-4 py-3">
             <div className="flex items-start gap-3">
               <span className="mt-0.5 text-lg">⚠️</span>
               <div>
                 <p className="font-medium">Search error</p>
-                <p className="text-sm opacity-90">{error}</p>
+                <p className="text-sm opacity-90">
+                  {error?.message || apiError}
+                </p>
               </div>
             </div>
           </div>
@@ -96,17 +98,14 @@ export default function SearchPage() {
               </span>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {results.map((result, index) => (
-                <div
-                  key={index}
-                  className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-900/60 backdrop-blur p-3 sm:p-4 shadow-sm hover:shadow-md transition-shadow"
-                >
+              {results.map((result: any, index: number) => (
+                <div key={index} className="backdrop-blur">
                   {/* Search Score Badge */}
-                  <div className="flex justify-end">
+                  {/* <div className="flex justify-end">
                     <span className="text-[10px] sm:text-xs font-mono bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 px-2.5 py-1 rounded-full border border-blue-200/60 dark:border-blue-900/60">
                       Score: {result.final_score?.toFixed(3) || "N/A"}
                     </span>
-                  </div>
+                  </div> */}
 
                   {/* Tweet Embed */}
                   <TweetEmbed tweetId={result.tweet_id} className="shadow-sm" />
@@ -118,11 +117,6 @@ export default function SearchPage() {
                         🔁 Retweet
                       </span>
                     )}
-                    {result.has_media && (
-                      <span className="px-2.5 py-1 text-xs rounded-full bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300 border border-green-200/60 dark:border-green-900/60">
-                        🖼️ Media
-                      </span>
-                    )}
                   </div>
                 </div>
               ))}
@@ -130,15 +124,62 @@ export default function SearchPage() {
           </div>
         )}
 
-        {!loading && results.length === 0 && query && (
+        {!isLoading && results.length === 0 && searchQuery && (
           <div className="text-center py-16">
             <div className="inline-flex items-center justify-center h-12 w-12 rounded-2xl bg-gray-100 dark:bg-gray-800 text-gray-500 mb-4">
               🔎
             </div>
             <p className="text-lg font-medium">No results</p>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              No results found for "{query}"
+              No results found for "{searchQuery}"
             </p>
+          </div>
+        )}
+
+        {!isLoading && results.length === 0 && !searchQuery && (
+          <div className="text-center py-16">
+            <div className="inline-flex items-center justify-center h-12 w-12 rounded-2xl bg-gray-100 dark:bg-gray-800 text-gray-500 mb-4">
+              🐦
+            </div>
+            <p className="text-lg font-medium">Welcome to Tweet Search</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 mb-6">
+              Search through indexed tweets to find what you're looking for
+            </p>
+
+            <div className="max-w-4xl mx-auto">
+              <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                Try searching for:
+              </p>
+              <div className="flex flex-wrap gap-2 justify-center">
+                {headingsLoading ? (
+                  <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
+                    <span className="h-4 w-4 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" />
+                    Loading examples...
+                  </div>
+                ) : headingsError ? (
+                  <div className="text-sm text-gray-500 dark:text-gray-400">
+                    Unable to load examples
+                  </div>
+                ) : headings && headings.length > 0 ? (
+                  headings.slice(0, 10).map((heading: any, index: number) => (
+                    <button
+                      key={index}
+                      onClick={() => {
+                        setQuery(heading.text);
+                        setSearchQuery(heading.text);
+                      }}
+                      className="px-3 py-1.5 text-xs rounded-full bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200/60 dark:border-blue-900/60 hover:bg-blue-100 dark:hover:bg-blue-900 transition-colors"
+                    >
+                      {heading.text}
+                    </button>
+                  ))
+                ) : (
+                  <div className="text-sm text-gray-500 dark:text-gray-400">
+                    No examples available
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         )}
       </div>

@@ -1,11 +1,19 @@
 import { serve, sql } from "bun";
 import index from "./frontend/index.html";
 import { searchTweets } from "./index";
+import { extractHeadings, scrapeHeadings } from "./lib/scraper";
+
+const headings = scrapeHeadings("https://lapoliticaonline.com/");
 
 serve({
   port: 3000,
   routes: {
     "/*": index,
+    "/api/headings": {
+      GET: async (req) => {
+        return new Response(JSON.stringify(await headings), { status: 200 });
+      },
+    },
     "/api/search": {
       GET: async (req) => {
         try {

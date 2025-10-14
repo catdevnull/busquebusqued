@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { ExternalLink, Eye, Heart, MessageCircle, Repeat2 } from "lucide-react";
+import useSWR from "swr";
 
 interface TweetData {
   url: string;
@@ -50,36 +51,18 @@ export default function TweetEmbed({
   tweetId,
   className = "",
 }: TweetEmbedProps) {
-  const [tweetData, setTweetData] = useState<TweetData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // Use SWR for data fetching
+  const {
+    data: apiResponse,
+    error,
+    isLoading: loading,
+  } = useSWR(`/api/tweet/${tweetId}`, (url: string) =>
+    fetch(url).then((res) => res.json())
+  );
 
-  useEffect(() => {
-    const fetchTweet = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-
-        const response = await fetch(`/api/tweet/${tweetId}`);
-        if (!response.ok) {
-          throw new Error(`Failed to fetch tweet: ${response.status}`);
-        }
-
-        const data = await response.json();
-        if (data.code !== 200) {
-          throw new Error(data.message || "Failed to fetch tweet");
-        }
-
-        setTweetData(data.tweet);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load tweet");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchTweet();
-  }, [tweetId]);
+  // Extract tweet data and handle API errors
+  const tweetData = apiResponse?.code === 200 ? apiResponse.tweet : null;
+  const apiError = apiResponse?.code !== 200 ? apiResponse?.message : null;
 
   if (loading) {
     return (
@@ -103,13 +86,13 @@ export default function TweetEmbed({
     );
   }
 
-  if (error) {
+  if (error || apiError) {
     return (
       <div
         className={`p-4 border border-red-200 dark:border-red-800 rounded-lg bg-red-50 dark:bg-red-900/20 ${className}`}
       >
         <p className="text-red-600 dark:text-red-400 text-sm">
-          Failed to load tweet: {error}
+          Failed to load tweet: {error?.message || apiError}
         </p>
         <a
           href={`https://twitter.com/i/status/${tweetId}`}
@@ -150,9 +133,9 @@ export default function TweetEmbed({
     <div
       className={`border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 shadow-sm hover:shadow-md dark:hover:shadow-lg transition-shadow ${className}`}
     >
-      <div className="p-4">
+      <div className="p-4 flex flex-col gap-4">
         {/* Header */}
-        <div className="flex items-center space-x-3 mb-3">
+        <div className="flex items-center space-x-3">
           <img
             src={tweetData.author.avatar_url}
             alt={tweetData.author.name}
@@ -174,7 +157,7 @@ export default function TweetEmbed({
         </div>
 
         {/* Tweet Content */}
-        <div className="mb-4">
+        <div className="flex-1 ">
           <p className="text-gray-900 dark:text-gray-100 whitespace-pre-wrap break-words">
             {tweetData.text}
           </p>
@@ -182,10 +165,10 @@ export default function TweetEmbed({
 
         {/* Media */}
         {tweetData.media && (
-          <div className="mb-4">
+          <div className="">
             {tweetData.media.photos && (
               <div className="grid grid-cols-1 gap-2">
-                {tweetData.media.photos.map((photo, index) => (
+                {tweetData.media.photos.map((photo: any, index: number) => (
                   <img
                     key={index}
                     src={photo.url}
@@ -197,7 +180,7 @@ export default function TweetEmbed({
             )}
             {tweetData.media.videos && (
               <div className="space-y-2">
-                {tweetData.media.videos.map((video, index) => (
+                {tweetData.media.videos.map((video: any, index: number) => (
                   <div key={index} className="relative">
                     <video
                       src={video.url}
@@ -215,20 +198,32 @@ export default function TweetEmbed({
         {/* Stats */}
         <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700 pt-3">
           <div className="flex items-center space-x-4">
-            <span>{formatNumber(tweetData.replies)} replies</span>
-            <span>{formatNumber(tweetData.retweets)} retweets</span>
-            <span>{formatNumber(tweetData.likes)} likes</span>
+            <div className="flex items-center gap-1">
+              <MessageCircle className="h-4 w-4" />
+              <span>{formatNumber(tweetData.replies)}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <Repeat2 className="h-4 w-4" />
+              <span>{formatNumber(tweetData.retweets)}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <Heart className="h-4 w-4" />
+              <span>{formatNumber(tweetData.likes)}</span>
+            </div>
             {tweetData.views && (
-              <span>{formatNumber(tweetData.views)} views</span>
+              <div className="flex items-center gap-1">
+                <Eye className="h-4 w-4" />
+                <span>{formatNumber(tweetData.views)}</span>
+              </div>
             )}
           </div>
           <a
             href={tweetData.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-blue-600 dark:text-blue-400 hover:underline"
+            className="flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline"
           >
-            View on Twitter
+            <ExternalLink className="h-4 w-4" />
           </a>
         </div>
       </div>
