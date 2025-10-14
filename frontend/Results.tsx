@@ -21,22 +21,22 @@ export default function Results() {
   const apiError = apiResponse?.error;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white dark:from-gray-900 dark:to-gray-950 text-gray-900 dark:text-gray-100">
+    <div className="min-h-screen bg-gradient-to-b from-amber-50 to-white dark:from-stone-900 dark:to-stone-950 text-stone-900 dark:text-stone-100">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10">
         <div className="flex items-center justify-between mb-8">
           <Link
             to="/"
-            className="inline-flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+            className="inline-flex items-center gap-2 text-sm text-stone-600 dark:text-stone-400 hover:text-amber-700 dark:hover:text-amber-400 transition-colors"
           >
             ← Nueva búsqueda
           </Link>
         </div>
 
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600">
+          <h1 className="text-4xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-amber-700 to-yellow-800">
             BusqueBusqued
           </h1>
-          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+          <p className="mt-2 text-sm text-stone-600 dark:text-stone-400">
             Resultados sobre: "{decodedQuery}"
           </p>
         </div>
@@ -57,11 +57,11 @@ export default function Results() {
 
         {isLoading && (
           <div className="text-center py-16">
-            <div className="inline-flex items-center justify-center h-12 w-12 rounded-2xl bg-gray-100 dark:bg-gray-800 text-gray-500 mb-4">
-              <span className="h-6 w-6 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" />
+            <div className="inline-flex items-center justify-center h-12 w-12 rounded-2xl bg-amber-100 dark:bg-stone-800 text-amber-600 mb-4">
+              <span className="h-6 w-6 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
             </div>
             <p className="text-lg font-medium">Buscando...</p>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            <p className="text-sm text-stone-500 dark:text-stone-400 mt-1">
               Buscando resultados para "{decodedQuery}"
             </p>
           </div>
@@ -78,7 +78,7 @@ export default function Results() {
                   {/* Additional Info */}
                   <div className="mt-3 flex gap-2 justify-center">
                     {result.is_retweet && (
-                      <span className="px-2.5 py-1 text-xs rounded-full bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300 border border-blue-200/60 dark:border-blue-900/60">
+                      <span className="px-2.5 py-1 text-xs rounded-full bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-200/60 dark:border-amber-900/60">
                         🔁 Retweet
                       </span>
                     )}
@@ -91,16 +91,16 @@ export default function Results() {
 
         {!isLoading && results.length === 0 && decodedQuery && (
           <div className="text-center py-16">
-            <div className="inline-flex items-center justify-center h-12 w-12 rounded-2xl bg-gray-100 dark:bg-gray-800 text-gray-500 mb-4">
+            <div className="inline-flex items-center justify-center h-12 w-12 rounded-2xl bg-amber-100 dark:bg-stone-800 text-amber-600 mb-4">
               🔎
             </div>
             <p className="text-lg font-medium">No se encontraron resultados</p>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            <p className="text-sm text-stone-500 dark:text-stone-400 mt-1">
               No se encontraron resultados para "{decodedQuery}"
             </p>
             <Link
               to="/"
-              className="inline-flex items-center justify-center mt-4 px-4 py-2 rounded-xl font-medium text-white bg-gradient-to-r from-blue-600 to-indigo-600 shadow-sm hover:from-blue-700 hover:to-indigo-700 transition-colors"
+              className="inline-flex items-center justify-center mt-4 px-4 py-2 rounded-xl font-medium text-white bg-gradient-to-r from-amber-700 to-yellow-800 shadow-sm hover:from-amber-800 hover:to-yellow-900 transition-colors"
             >
               Nueva búsqueda
             </Link>
