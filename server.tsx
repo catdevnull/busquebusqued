@@ -5,6 +5,39 @@ import { extractHeadings, scrapeHeadings } from "./lib/scraper";
 
 const headings = scrapeHeadings("https://lapoliticaonline.com/");
 
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX_REQUESTS = 30;
+const rateLimitBuckets = new Map<string, number[]>();
+
+// Basic in-memory per-client rate limiting for search requests
+function getClientIdentifier(req: Request): string {
+  const forwardedFor = req.headers.get("x-forwarded-for");
+  if (forwardedFor) {
+    return forwardedFor.split(",")[0]?.trim() || "unknown";
+  }
+  const realIp = req.headers.get("x-real-ip");
+  if (realIp) {
+    return realIp;
+  }
+  return "local";
+}
+
+function checkRateLimit(clientId: string, now: number): number {
+  const windowStart = now - RATE_LIMIT_WINDOW_MS;
+  const timestamps = rateLimitBuckets.get(clientId) ?? [];
+  const recent = timestamps.filter((timestamp) => timestamp > windowStart);
+
+  if (recent.length >= RATE_LIMIT_MAX_REQUESTS) {
+    rateLimitBuckets.set(clientId, recent);
+    const retryAfterMs = (recent[0] ?? now) + RATE_LIMIT_WINDOW_MS - now;
+    return Math.max(1, Math.ceil(retryAfterMs / 1000));
+  }
+
+  recent.push(now);
+  rateLimitBuckets.set(clientId, recent);
+  return 0;
+}
+
 serve({
   port: 3000,
   routes: {
@@ -17,6 +50,23 @@ serve({
     "/api/search": {
       GET: async (req) => {
         try {
+          const now = Date.now();
+          const clientId = getClientIdentifier(req);
+          const retryAfterSeconds = checkRateLimit(clientId, now);
+
+          if (retryAfterSeconds > 0) {
+            return new Response(
+              JSON.stringify({ error: "Too many requests, please slow down." }),
+              {
+                status: 429,
+                headers: {
+                  "Content-Type": "application/json",
+                  "Retry-After": retryAfterSeconds.toString(),
+                },
+              }
+            );
+          }
+
           const url = new URL(req.url);
           const query = url.searchParams.get("q");
           const k = parseInt(url.searchParams.get("k") || "40", 10);
