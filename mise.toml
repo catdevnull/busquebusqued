@@ -1,2 +1,6 @@
 [tools]
 bun = "1.3"
+just = "latest"
+"go:github.com/psviderski/uncloud/cmd/uncloud" = "main"
+#"ubi:psviderski/uncloud" = "latest"
+"ubi:psviderski/unregistry" = { version = "latest", exe = "docker-pussh" }

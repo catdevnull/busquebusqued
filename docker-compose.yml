@@ -1,0 +1,21 @@
+services:
+  busquebusqued:
+    image: catdevnull/busquebusqued:latest
+    pull_policy: never
+    x-ports:
+      - busqued.nulo.lol:3000/https
+    environment:
+      DATABASE_URL: postgresql://busquebusqued:password@busquebusqued-postgres:5432/busquebusqued
+      OPENROUTER_API_KEY: $OPENROUTER_API_KEY
+      OPENAI_API_KEY: $OPENAI_API_KEY
+  busquebusqued-postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_DB: busquebusqued
+      POSTGRES_USER: busquebusqued
+      POSTGRES_PASSWORD: password
+    volumes:
+      - busquebusqued-pgdata:/var/lib/postgresql/data
+
+volumes:
+  busquebusqued-pgdata:
